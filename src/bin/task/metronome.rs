@@ -1,4 +1,3 @@
-use defmt::{error, info};
 use esp_hal::clock;
 use esp_hal::gpio::OutputPin;
 use esp_hal::ledc::channel::{Channel, ChannelIFace};
@@ -18,78 +17,53 @@ pub struct MetronomeConfig<'a> {
     pub ledc: LEDC<'a>,
 }
 
-// https://github.com/esp-rs/esp-hal-community/blob/main/esp-hal-buzzer/src/notes.rs
-
 #[embassy_executor::task]
 pub async fn metronome_task(config: MetronomeConfig<'static>) {
-    let mut ledc = Ledc::new(config.ledc);
-    ledc.set_global_slow_clock(LSGlobalClkSource::APBClk);
-
-    let frequency = Rate::from_hz(261);
-    let mut result = 0;
-    let mut value = Rate::from_hz(clock::ll::apb_clk_frequency()) / frequency;
-
-    // Limit duty resolution to 14 bits
-    while value > 1 && result < 14 {
-        value >>= 1;
-        result += 1;
-    }
-
-    let mut lstimer0 = ledc.timer::<LowSpeed>(timer::Number::Timer1);
-    lstimer0
-        .configure(timer::config::Config {
-            duty: timer::config::Duty::try_from(result).unwrap(),
-            clock_source: timer::LSClockSource::APBClk,
-            frequency,
-        })
-        .unwrap();
-
-    let mut channel0 = ledc.channel(channel::Number::Channel0, config.buzzer_pin);
-    channel0
-        .configure(channel::config::Config {
-            timer: &lstimer0,
-            duty_pct: 0,
-            drive_mode: DriveMode::PushPull,
-        })
-        .unwrap();
+    let mut buzzer = Buzzer::new(config.ledc, config.buzzer_pin);
 
     let mut receiver = STATE.receiver().unwrap();
 
     let mut metronome = Metronome::default();
 
-    let mut beat = 1;
-
-    let buzzer = Buzzer::new(config.ledc, config.buzzer_pin);
+    let mut beat = 0;
 
     loop {
-        beat += 1;
-        if beat >= metronome.time_signature {
-            beat = 1;
+        // Wait till active
+        if !metronome.enabled {
+            loop {
+                let state = receiver.changed().await;
+                metronome = state.metronome;
+                if state.metronome.enabled {
+                    beat = 0;
+                    break;
+                }
+            }
         }
 
-        channel0.set_duty(50).ok();
+        // Different tone for time signature
+        let mut frequency = 262;
+        if beat == 0 && metronome.time_signature >= 2 {
+            frequency = 523;
+        }
+
+        beat = (beat + 1) % metronome.time_signature;
+
+        buzzer.play(frequency);
         embassy_time::Timer::after_millis(50).await;
 
-        channel0.set_duty(0).ok();
+        buzzer.mute();
         let bpm = metronome.bpm as u64;
         let delay = (60 * 1000 - (bpm * 50)) / bpm;
         embassy_time::Timer::after_millis(delay).await;
 
+        // Check if updated
         if let Some(state) = receiver.try_changed() {
             metronome = state.metronome;
-            if !state.metronome.enabled {
-                loop {
-                    let state = receiver.changed().await;
-                    metronome = state.metronome;
-                    if state.metronome.enabled {
-                        break;
-                    }
-                }
-            }
         }
     }
 }
 
+// most of this is from https://github.com/esp-rs/esp-hal-community/blob/main/esp-hal-buzzer/
 struct Buzzer<'a> {
     timer: Timer<'a, LowSpeed>,
     output_pin: AnyPin<'a>,
@@ -138,7 +112,6 @@ impl<'a> Buzzer<'a> {
         channel
             .configure(channel::config::Config {
                 timer: &self.timer,
-                // Use volume as duty if set since we use the same channel.
                 duty_pct: 50,
                 drive_mode: DriveMode::PushPull,
             })
