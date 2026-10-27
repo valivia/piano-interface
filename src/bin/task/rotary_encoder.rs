@@ -2,7 +2,7 @@ use core::{cell::RefCell, cmp::min};
 
 use critical_section::Mutex;
 use defmt::{debug, info};
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, watch::Watch};
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel, watch::Watch};
 use embassy_time::Timer;
 use esp_hal::{
     gpio::{AnyPin, Input, InputConfig, Pull},
@@ -14,8 +14,9 @@ use esp_hal::{
 
 static UNIT0: Mutex<RefCell<Option<unit::Unit<'static, 1>>>> = Mutex::new(RefCell::new(None));
 
-pub static ROTARY_COUNT: Watch<CriticalSectionRawMutex, i16, 1> = Watch::new();
-pub static ROTARY_DELTA: Watch<CriticalSectionRawMutex, i16, 1> = Watch::new();
+pub static ROTARY_STEPS: Channel<CriticalSectionRawMutex, i8, 8> = Channel::new();
+
+const COUNTS_PER_DETENT: i16 = 4;
 
 pub struct RotaryEncoderConfig<'a> {
     pub pcnt: PCNT<'a>,
@@ -28,9 +29,10 @@ const TAG: &'static str = "[encoder]";
 #[embassy_executor::task]
 pub async fn rotary_encoder_task(config: RotaryEncoderConfig<'static>) {
     debug!("{} initializing", TAG);
-    // Initialize Pulse Counter (PCNT) unit with limits and filter settings
+
     let mut pcnt = Pcnt::new(config.pcnt);
     pcnt.set_interrupt_handler(interrupt_handler);
+
     let u0 = pcnt.unit1;
     u0.set_low_limit(None).unwrap();
     u0.set_high_limit(None).unwrap();
@@ -64,41 +66,34 @@ pub async fn rotary_encoder_task(config: RotaryEncoderConfig<'static>) {
 
     critical_section::with(|cs| UNIT0.borrow_ref_mut(cs).replace(u0));
 
-    // Monitor counter value and print updates
-    let total_sender = ROTARY_COUNT.sender();
-    let delta_sender = ROTARY_DELTA.sender();
-
-    let mut count: u8 = 0;
-    let mut last_value: i16 = 0;
+    let mut last_raw: i16 = 0;
+    let mut remainder: i16 = 0;
 
     info!("{} initialized", TAG);
 
     loop {
-        Timer::after_millis(100).await;
-        let current_value = counter.get();
+        Timer::after_millis(5).await;
 
-        if current_value == last_value {
+        let raw = counter.get();
+        let d = raw.wrapping_sub(last_raw);
+        if d == 0 {
+            continue;
+        }
+        last_raw = raw;
+        remainder += d;
+
+        let steps = remainder / COUNTS_PER_DETENT;
+        if steps == 0 {
             continue;
         }
 
-        let delta = current_value.wrapping_sub(last_value);
-        delta_sender.send(delta);
-        last_value = current_value;
+        remainder -= steps * COUNTS_PER_DETENT;
 
-        let new_count = saturating_add_custom_range(count, delta, 0, 100);
-
-        if new_count == count {
-            continue;
+        let dir = steps.signum() as i8;
+        for _ in 0..steps.unsigned_abs() {
+            let _ = ROTARY_STEPS.try_send(dir);
         }
-
-        count = new_count;
-        total_sender.send(count as i16);
     }
-}
-
-fn saturating_add_custom_range(value: u8, delta: i16, min: u8, max: u8) -> u8 {
-    let new = value.saturating_add_signed(delta as i8);
-    new.clamp(min, max)
 }
 
 #[handler(priority = Priority::Priority2)]
