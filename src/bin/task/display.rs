@@ -1,13 +1,6 @@
-use defmt::info;
-use embassy_time::{Instant, Timer};
-use embedded_graphics::{
-    geometry::Point,
-    mono_font::{MonoTextStyle, ascii::FONT_6X10, iso_8859_5::FONT_7X13_BOLD},
-    pixelcolor::{Rgb565, RgbColor},
-    prelude::*,
-    primitives::{Circle, PrimitiveStyleBuilder},
-    text::{Alignment, Text, TextStyleBuilder},
-};
+use defmt::{debug, info};
+use embassy_time::Timer;
+
 use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_hal::{
     Async,
@@ -25,18 +18,13 @@ use gc9a01::{
     rotation::DisplayRotation,
 };
 
-use crate::{
-    modules::{display::DisplayRenderer, state::INSTRUMENTS},
-    task::state::STATE,
-};
+use crate::{modules::display::DisplayRenderer, task::state::STATE};
 
 pub type Display<'a> = Gc9a01<
     SPIInterface<ExclusiveDevice<Spi<'a, Async>, Output<'a>, Delay>, Output<'a>>,
     DisplayResolution240x240,
     BufferedGraphics<DisplayResolution240x240>,
 >;
-
-const ACCENT_COLOR: Rgb565 = Rgb565::new(26, 47, 18);
 
 pub struct DisplayConfig<'a> {
     pub spi: SPI2<'a>,
@@ -48,8 +36,12 @@ pub struct DisplayConfig<'a> {
     pub backlight: AnyPin<'a>,
 }
 
+const TAG: &'static str = "[display]";
+
 #[embassy_executor::task]
 pub async fn display_task(config: DisplayConfig<'static>) {
+    debug!("{} initializing", TAG);
+
     let cs = Output::new(config.cs, Level::High, OutputConfig::default());
     let dc = Output::new(config.dc, Level::High, OutputConfig::default());
     let mut reset = Output::new(config.reset, Level::High, OutputConfig::default());
@@ -77,8 +69,7 @@ pub async fn display_task(config: DisplayConfig<'static>) {
     display.init(&mut delay).unwrap();
     backlight.set_high();
     display.clear();
-
-    let char_style = MonoTextStyle::new(&FONT_7X13_BOLD, ACCENT_COLOR);
+    display.flush().ok();
 
     let mut renderer = DisplayRenderer {
         display,
@@ -87,37 +78,11 @@ pub async fn display_task(config: DisplayConfig<'static>) {
 
     let mut state_receiver = STATE.receiver().unwrap();
 
+    info!("{} initialized", TAG);
+
     loop {
         let state = state_receiver.try_changed();
         renderer.render(&state);
         Timer::after_millis(40).await;
     }
-
-    // let mut index = 0;
-
-    //     let colors = [Rgb565::RED, Rgb565::GREEN, Rgb565::BLUE];
-    //     for &color in colors.iter().cycle() {
-    //         let fill = PrimitiveStyleBuilder::new().fill_color(color).build();
-    //         display.clear();
-    //
-    //         Circle::with_center(Point::new(120, 120), 60)
-    //             .into_styled(fill)
-    //             .draw(&mut display)
-    //             .unwrap();
-    //
-    //         Text::with_alignment(
-    //             INSTRUMENTS[index],
-    //             Point::new(120, 60),
-    //             char_style,
-    //             Alignment::Center,
-    //         )
-    //         .draw(&mut display)
-    //         .unwrap();
-    //
-    //         index = (index + 1) % (INSTRUMENTS.len() - 1);
-    //
-    //         display.flush().ok();
-    //
-    //         Timer::after_millis(500).await;
-    //     }
 }

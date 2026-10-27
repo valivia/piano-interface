@@ -1,3 +1,4 @@
+use defmt::info;
 use esp_hal::clock;
 use esp_hal::gpio::OutputPin;
 use esp_hal::ledc::channel::{Channel, ChannelIFace};
@@ -17,6 +18,8 @@ pub struct MetronomeConfig<'a> {
     pub ledc: LEDC<'a>,
 }
 
+const TAG: &'static str = "[metronome]";
+
 #[embassy_executor::task]
 pub async fn metronome_task(config: MetronomeConfig<'static>) {
     let mut buzzer = Buzzer::new(config.ledc, config.buzzer_pin);
@@ -26,6 +29,8 @@ pub async fn metronome_task(config: MetronomeConfig<'static>) {
     let mut metronome = Metronome::default();
 
     let mut beat = 0;
+
+    info!("{} initialized", TAG);
 
     loop {
         // Wait till active

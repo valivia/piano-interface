@@ -19,6 +19,8 @@ pub struct StateConfig<'a> {
     pub reverb_pin: AnyPin<'a>,
 }
 
+const TAG: &'static str = "[state_task]";
+
 #[embassy_executor::task]
 pub async fn task(config: StateConfig<'static>) {
     let input_config = InputConfig::default().with_pull(Pull::Up);
@@ -32,6 +34,9 @@ pub async fn task(config: StateConfig<'static>) {
 
     let mut state = State::default();
     let sender = STATE.sender();
+
+    info!("{} initialized", TAG);
+
     loop {
         match select6(
             on_off_input.wait_for_falling_edge(),
@@ -47,20 +52,27 @@ pub async fn task(config: StateConfig<'static>) {
             Either6::Second(_) => {
                 info!("Clicked demo");
                 state.demo.enabled = !state.demo.enabled;
+                state.page_event(Page::Demo);
                 sender.send(state);
             }
             Either6::Third(_) => {
                 info!("Clicked metronome");
                 state.metronome.enabled = !state.metronome.enabled;
+                state.page_event(Page::Metronome);
                 sender.send(state);
             }
             Either6::Fourth(_) => {
                 info!("Clicked reverb");
                 state.reverb.enabled = !state.reverb.enabled;
+                state.page_event(Page::Reverb);
                 sender.send(state);
             }
             Either6::Fifth(_) => info!("Clicked"),
-            Either6::Sixth(delta) => info!("{}", delta),
+            Either6::Sixth(delta) => {
+                info!("delta: {}", delta);
+                state.encoder_event(delta);
+                sender.send(state);
+            }
         }
 
         Timer::after_millis(250).await;

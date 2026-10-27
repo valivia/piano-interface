@@ -31,6 +31,17 @@ pub enum ReverbType {
     Stage,
 }
 
+impl ReverbType {
+    pub fn name(&self) -> &'static str {
+        match self {
+            ReverbType::Room => "Room",
+            ReverbType::Hall1 => "Hall 1",
+            ReverbType::Hall2 => "Hall 2",
+            ReverbType::Stage => "Stage",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Reverb {
     pub enabled: bool,
@@ -51,16 +62,16 @@ pub struct State {
     pub metronome: Metronome,
     pub reverb: Reverb,
     pub demo: Demo,
-    pub active_instrument: &'static str,
-    pub selected_instrument: &'static str,
+    active_instrument_index: usize,
+    selected_instrument_index: usize,
 }
 
 impl Default for State {
     fn default() -> Self {
         Self {
             active_page: Page::Instrument,
-            active_instrument: "",
-            selected_instrument: "",
+            active_instrument_index: 0,
+            selected_instrument_index: 0,
             metronome: Metronome::default(),
             demo: Demo {
                 enabled: false,
@@ -73,6 +84,39 @@ impl Default for State {
                 reverb_depth: 50,
             },
         }
+    }
+}
+
+impl State {
+    pub fn encoder_event(&mut self, delta: i16) {
+        match self.active_page {
+            Page::Instrument => {
+                self.active_instrument_index = (self.active_instrument_index as i16
+                    + delta.clamp(-1, 1)) as usize
+                    % (INSTRUMENTS.len() - 1);
+            }
+            Page::Demo => {}
+            Page::Metronome => {}
+            Page::Reverb => {}
+        }
+    }
+
+    pub fn page_event(&mut self, page: Page) {
+        if self.active_page == page {
+            self.active_page = Page::Instrument;
+        } else {
+            self.active_page = page;
+        }
+    }
+}
+
+impl State {
+    pub fn active_instrument(&self) -> &'static str {
+        return INSTRUMENTS[self.active_instrument_index];
+    }
+
+    pub fn selected_instrument(&self) -> &'static str {
+        return INSTRUMENTS[self.selected_instrument_index];
     }
 }
 

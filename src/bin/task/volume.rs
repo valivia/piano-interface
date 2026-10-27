@@ -15,6 +15,8 @@ const VOLUME_CHANGED: Signal<CriticalSectionRawMutex, u8> = Signal::new();
 
 const CALIBRATION_MAX: usize = 3154;
 
+const TAG: &'static str = "[volume]";
+
 #[embassy_executor::task]
 pub async fn task(config: VolumeConfig<'static>) {
     let mut adc1_config = AdcConfig::new();
@@ -25,6 +27,8 @@ pub async fn task(config: VolumeConfig<'static>) {
 
     // unreachable value, forces loop to send volume at boot
     let mut volume: u8 = 255;
+
+    info!("{} initialized", TAG);
 
     loop {
         let pin_value: u16 = adc1.read_oneshot(&mut pin).await;

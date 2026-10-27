@@ -1,6 +1,7 @@
 use core::{cell::RefCell, cmp::min};
 
 use critical_section::Mutex;
+use defmt::{debug, info};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, watch::Watch};
 use embassy_time::Timer;
 use esp_hal::{
@@ -22,8 +23,11 @@ pub struct RotaryEncoderConfig<'a> {
     pub s2_pin: AnyPin<'a>,
 }
 
+const TAG: &'static str = "[encoder]";
+
 #[embassy_executor::task]
 pub async fn rotary_encoder_task(config: RotaryEncoderConfig<'static>) {
+    debug!("{} initializing", TAG);
     // Initialize Pulse Counter (PCNT) unit with limits and filter settings
     let mut pcnt = Pcnt::new(config.pcnt);
     pcnt.set_interrupt_handler(interrupt_handler);
@@ -66,6 +70,8 @@ pub async fn rotary_encoder_task(config: RotaryEncoderConfig<'static>) {
 
     let mut count: u8 = 0;
     let mut last_value: i16 = 0;
+
+    info!("{} initialized", TAG);
 
     loop {
         Timer::after_millis(100).await;
