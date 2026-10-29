@@ -5,21 +5,30 @@ use embedded_graphics::{
 };
 
 use crate::modules::{
-    display::{CHAR_LARGE, DisplayRenderer},
-    state::State,
+    display::{DisplayRenderer, PageRender, TEXT_DEFAULT, TEXT_LARGE},
+    state::instrument::Instrument,
 };
 
-impl DisplayRenderer {
-    pub fn draw_instrument_page(&mut self, state: &State) {
+impl PageRender for Instrument {
+    fn render(&self, renderer: &mut DisplayRenderer) {
         Text::with_alignment(
-            state.active_instrument(),
+            self.active_instrument(),
             Point::new(120, 120),
-            CHAR_LARGE,
+            TEXT_LARGE,
             Alignment::Center,
         )
-        .draw(&mut self.display)
+        .draw(&mut renderer.display)
         .ok();
 
-        self.draw_status_icons(state);
+        if self.is_selecting() {
+            Text::with_alignment(
+                self.selected_instrument(),
+                Point::new(120, 130),
+                TEXT_DEFAULT,
+                Alignment::Center,
+            )
+            .draw(&mut renderer.display)
+            .ok();
+        }
     }
 }

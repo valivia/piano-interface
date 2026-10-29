@@ -3,11 +3,11 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal}
 use embassy_time::Timer;
 use esp_hal::{
     analog::adc::{Adc, AdcCalCurve, AdcConfig, Attenuation},
-    peripherals::{ADC1, GPIO5},
+    peripherals::{ADC1, GPIO1, GPIO5},
 };
 
 pub struct VolumeConfig<'a> {
-    pub volume_pin: GPIO5<'a>,
+    pub volume_pin: GPIO1<'a>,
     pub adc: ADC1<'a>,
 }
 
@@ -37,7 +37,7 @@ pub async fn task(config: VolumeConfig<'static>) {
         if new_volume != volume {
             volume = new_volume;
             VOLUME_CHANGED.signal(new_volume);
-            info!("volume changed: {} - {}", &pin_value, new_volume);
+            // info!("volume changed: {} - {}", &pin_value, new_volume);
         }
 
         Timer::after_millis(250).await;

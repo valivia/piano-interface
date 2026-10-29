@@ -1,5 +1,7 @@
+pub mod button;
 pub mod display;
 pub mod metronome;
+pub mod power_state;
 pub mod rotary_encoder;
 pub mod state;
 pub mod volume;

@@ -7,32 +7,45 @@ use embedded_graphics::{
 use heapless::String;
 
 use crate::modules::{
-    display::{CHAR_LARGE, DisplayRenderer},
-    state::State,
+    display::{DisplayRenderer, PageRender, TEXT_LARGE},
+    state::metronome::{Metronome, MetronomeSetting},
 };
 
-impl DisplayRenderer {
-    pub fn draw_metronome_page(&mut self, state: &State) {
+impl PageRender for Metronome {
+    fn render(&self, renderer: &mut DisplayRenderer) {
         let mut text = String::<8>::new();
 
+        // let image = Image::new(&tga, Point::zero());
         Text::with_alignment(
             "Metronome",
             Point::new(120, 90),
-            CHAR_LARGE,
+            TEXT_LARGE,
             Alignment::Center,
         )
-        .draw(&mut self.display)
+        .draw(&mut renderer.display)
         .ok();
 
-        write!(text, "{}", state.metronome.bpm).ok();
-        Text::with_alignment(&text, Point::new(120, 120), CHAR_LARGE, Alignment::Center)
-            .draw(&mut self.display)
-            .ok();
+        write!(text, "{}", self.bpm).ok();
+        let mut bpm =
+            Text::with_alignment(&text, Point::new(120, 120), TEXT_LARGE, Alignment::Center);
 
+        if self.selected_setting() == MetronomeSetting::Bpm {
+            bpm.character_style.underline_color =
+                embedded_graphics::text::DecorationColor::TextColor;
+        }
+
+        bpm.draw(&mut renderer.display).ok();
         text.clear();
-        write!(text, "{}", state.metronome.time_signature).ok();
-        Text::with_alignment(&text, Point::new(120, 140), CHAR_LARGE, Alignment::Center)
-            .draw(&mut self.display)
-            .ok();
+
+        write!(text, "{}", self.time_signature).ok();
+        let mut time_signature =
+            Text::with_alignment(&text, Point::new(120, 140), TEXT_LARGE, Alignment::Center);
+
+        if self.selected_setting() == MetronomeSetting::TimeSignature {
+            time_signature.character_style.underline_color =
+                embedded_graphics::text::DecorationColor::TextColor;
+        }
+
+        time_signature.draw(&mut renderer.display).ok();
     }
 }

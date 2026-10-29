@@ -14,11 +14,12 @@ use esp_hal::clock::CpuClock;
 use esp_hal::timer::timg::TimerGroup;
 use esp_println::{self as _, println};
 
+use crate::task::button::{ButtonId, button_task};
 use crate::task::display::DisplayConfig;
 use crate::task::metronome::MetronomeConfig;
+use crate::task::power_state::PowerStateConfig;
 use crate::task::rotary_encoder::RotaryEncoderConfig;
-use crate::task::state::StateConfig;
-use crate::task::volume::VolumeConfig;
+use esp_hal::gpio::Pin;
 
 #[panic_handler]
 fn panic(panic_info: &core::panic::PanicInfo) -> ! {
@@ -72,27 +73,25 @@ async fn main(spawner: Spawner) -> ! {
     // TODO: Spawn some tasks
     let _ = spawner;
 
-    // State
+    // Power state
     spawner.spawn(
-        task::state::task(StateConfig {
-            on_off_pin: peripherals.GPIO4.into(),
-            demo_pin: peripherals.GPIO39.into(),
-            metronome_pin: peripherals.GPIO40.into(),
-            reverb_pin: peripherals.GPIO41.into(),
-            click_pin: peripherals.GPIO9.into(),
+        task::power_state::task(PowerStateConfig {
+            led_pin: peripherals.GPIO8.into(),
         })
         .unwrap(),
     );
+    // State
+    spawner.spawn(task::state::task().unwrap());
 
     // Display
     spawner.spawn(
         task::display::display_task(DisplayConfig {
             spi: peripherals.SPI2,
-            clock: peripherals.GPIO35.into(),
-            data_out: peripherals.GPIO36.into(),
-            reset: peripherals.GPIO37.into(),
-            dc: peripherals.GPIO13.into(),
-            cs: peripherals.GPIO14.into(),
+            clock: peripherals.GPIO34.into(),
+            data_out: peripherals.GPIO33.into(),
+            reset: peripherals.GPIO18.into(),
+            dc: peripherals.GPIO17.into(),
+            cs: peripherals.GPIO16.into(),
             backlight: peripherals.GPIO15.into(),
         })
         .unwrap(),
@@ -101,7 +100,7 @@ async fn main(spawner: Spawner) -> ! {
     // Metronome
     spawner.spawn(
         task::metronome::metronome_task(MetronomeConfig {
-            buzzer_pin: peripherals.GPIO17.into(),
+            buzzer_pin: peripherals.GPIO12.into(),
             ledc: peripherals.LEDC,
         })
         .unwrap(),
@@ -111,15 +110,23 @@ async fn main(spawner: Spawner) -> ! {
     spawner.spawn(
         task::rotary_encoder::rotary_encoder_task(RotaryEncoderConfig {
             pcnt: peripherals.PCNT,
-            s1_pin: peripherals.GPIO7.into(),
-            s2_pin: peripherals.GPIO8.into(),
+            s1_pin: peripherals.GPIO38.into(),
+            s2_pin: peripherals.GPIO37.into(),
         })
         .unwrap(),
     );
 
+    // Buttons
+    spawner.spawn(button_task(ButtonId::OnOff, peripherals.GPIO7.degrade()).unwrap());
+    spawner.spawn(button_task(ButtonId::Click, peripherals.GPIO36.degrade()).unwrap());
+    spawner.spawn(button_task(ButtonId::Demo, peripherals.GPIO2.degrade()).unwrap());
+    spawner.spawn(button_task(ButtonId::Metronome, peripherals.GPIO4.degrade()).unwrap());
+    spawner.spawn(button_task(ButtonId::Reverb, peripherals.GPIO5.degrade()).unwrap());
+
+    // Volume
     spawner.spawn(
-        task::volume::task(VolumeConfig {
-            volume_pin: peripherals.GPIO5.into(),
+        task::volume::task(task::volume::VolumeConfig {
+            volume_pin: peripherals.GPIO1.into(),
             adc: peripherals.ADC1,
         })
         .unwrap(),

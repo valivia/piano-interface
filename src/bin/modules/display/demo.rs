@@ -5,28 +5,23 @@ use embedded_graphics::{
 };
 
 use crate::modules::{
-    display::{CHAR_LARGE, DisplayRenderer},
-    state::State,
+    display::{DisplayRenderer, PageRender, TEXT_LARGE},
+    state::demo::Demo,
 };
 
-impl DisplayRenderer {
-    pub fn draw_demo_page(&mut self, state: &State) {
-        Text::with_alignment(
-            "Metronome",
-            Point::new(120, 90),
-            CHAR_LARGE,
-            Alignment::Center,
-        )
-        .draw(&mut self.display)
-        .ok();
+impl PageRender for Demo {
+    fn render(&self, renderer: &mut DisplayRenderer) {
+        Text::with_alignment("Demo", Point::new(120, 90), TEXT_LARGE, Alignment::Center)
+            .draw(&mut renderer.display)
+            .ok();
 
         Text::with_alignment(
-            state.demo.active_song,
+            self.active_song(),
             Point::new(120, 120),
-            CHAR_LARGE,
+            TEXT_LARGE,
             Alignment::Center,
         )
-        .draw(&mut self.display)
+        .draw(&mut renderer.display)
         .ok();
     }
 }

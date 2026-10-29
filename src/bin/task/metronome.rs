@@ -10,7 +10,8 @@ use esp_hal::{
     time::Rate,
 };
 
-use crate::modules::state::Metronome;
+use crate::modules::state::metronome::Metronome;
+use crate::task::power_state::POWER_STATE;
 use crate::task::state::STATE;
 
 pub struct MetronomeConfig<'a> {
@@ -25,6 +26,7 @@ pub async fn metronome_task(config: MetronomeConfig<'static>) {
     let mut buzzer = Buzzer::new(config.ledc, config.buzzer_pin);
 
     let mut receiver = STATE.receiver().unwrap();
+    let mut power_state_receiver = POWER_STATE.receiver().unwrap();
 
     let mut metronome = Metronome::default();
 
@@ -33,6 +35,15 @@ pub async fn metronome_task(config: MetronomeConfig<'static>) {
     info!("{} initialized", TAG);
 
     loop {
+        if POWER_STATE.try_get() == Some(false) {
+            loop {
+                if power_state_receiver.changed().await {
+                    beat = 0;
+                    break;
+                }
+            }
+        }
+
         // Wait till active
         if !metronome.enabled {
             loop {
@@ -117,7 +128,7 @@ impl<'a> Buzzer<'a> {
         channel
             .configure(channel::config::Config {
                 timer: &self.timer,
-                duty_pct: 50,
+                duty_pct: 80,
                 drive_mode: DriveMode::PushPull,
             })
             .unwrap();
