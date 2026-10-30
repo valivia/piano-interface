@@ -3,10 +3,7 @@ use defmt::info;
 use crate::{
     modules::{
         display::PageRender,
-        state::{
-            cursor::Cursor, demo::Demo, instrument::Instrument, metronome::Metronome,
-            reverb::Reverb,
-        },
+        state::{demo::Demo, instrument::Instrument, metronome::Metronome, reverb::Reverb},
     },
     task::button::{ButtonEvent, ButtonId, ButtonPressType},
 };
@@ -54,6 +51,7 @@ impl Default for State {
 trait ControlEvents {
     fn encoder_event(&mut self, delta: i8);
     fn click_event(&mut self, press_type: ButtonPressType);
+    fn power_state_reset(&mut self);
 }
 
 impl State {
@@ -74,21 +72,17 @@ impl State {
         match event.id {
             ButtonId::OnOff => (),
             ButtonId::Demo => {
-                if event.press_type == ButtonPressType::Short && !is_instrument_page {
-                    self.demo.enabled = !self.demo.enabled;
-                } else {
-                    self.page_event(Page::Demo);
-                }
+                self.page_event(Page::Demo);
             }
             ButtonId::Metronome => {
-                if event.press_type == ButtonPressType::Short && !is_instrument_page {
+                if event.press_type == ButtonPressType::Short {
                     self.metronome.enabled = !self.metronome.enabled;
                 } else {
                     self.page_event(Page::Metronome);
                 }
             }
             ButtonId::Reverb => {
-                if event.press_type == ButtonPressType::Short && !is_instrument_page {
+                if event.press_type == ButtonPressType::Short {
                     self.reverb.enabled = !self.reverb.enabled;
                 } else {
                     self.page_event(Page::Reverb);
@@ -104,11 +98,11 @@ impl State {
         self.is_on = state;
         if !state {
             info!("{} power state changed, resetting state", TAG);
+            self.instrument.power_state_reset();
+            self.metronome.power_state_reset();
+            self.reverb.power_state_reset();
+            self.demo.power_state_reset();
             self.active_page = Page::Instrument;
-            self.demo.enabled = false;
-            self.metronome.enabled = false;
-            self.metronome.cursor = Cursor::default();
-            self.reverb.cursor = Cursor::default();
         };
     }
 

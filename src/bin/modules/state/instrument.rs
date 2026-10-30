@@ -45,6 +45,10 @@ impl ControlEvents for Instrument {
     fn click_event(&mut self, _press_type: ButtonPressType) {
         self.active_instrument_index = self.selected_instrument_index;
     }
+
+    fn power_state_reset(&mut self) {
+        self.selected_instrument_index = self.active_instrument_index
+    }
 }
 
 pub const INSTRUMENTS: &[&'static str] = &[

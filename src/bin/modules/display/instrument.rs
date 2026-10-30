@@ -5,7 +5,7 @@ use embedded_graphics::{
 };
 
 use crate::modules::{
-    display::{DisplayRenderer, PageRender, TEXT_DEFAULT, TEXT_LARGE},
+    display::{DisplayRenderer, PageRender, style::STYLE_ACCENT},
     state::instrument::Instrument,
 };
 
@@ -14,7 +14,7 @@ impl PageRender for Instrument {
         Text::with_alignment(
             self.active_instrument(),
             Point::new(120, 120),
-            TEXT_LARGE,
+            STYLE_ACCENT.text_large(),
             Alignment::Center,
         )
         .draw(&mut renderer.display)
@@ -23,8 +23,8 @@ impl PageRender for Instrument {
         if self.is_selecting() {
             Text::with_alignment(
                 self.selected_instrument(),
-                Point::new(120, 130),
-                TEXT_DEFAULT,
+                Point::new(120, 140),
+                STYLE_ACCENT.text_default(),
                 Alignment::Center,
             )
             .draw(&mut renderer.display)

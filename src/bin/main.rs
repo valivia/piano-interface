@@ -120,8 +120,8 @@ async fn main(spawner: Spawner) -> ! {
     spawner.spawn(button_task(ButtonId::OnOff, peripherals.GPIO7.degrade()).unwrap());
     spawner.spawn(button_task(ButtonId::Click, peripherals.GPIO36.degrade()).unwrap());
     spawner.spawn(button_task(ButtonId::Demo, peripherals.GPIO2.degrade()).unwrap());
-    spawner.spawn(button_task(ButtonId::Metronome, peripherals.GPIO4.degrade()).unwrap());
-    spawner.spawn(button_task(ButtonId::Reverb, peripherals.GPIO5.degrade()).unwrap());
+    spawner.spawn(button_task(ButtonId::Reverb, peripherals.GPIO4.degrade()).unwrap());
+    spawner.spawn(button_task(ButtonId::Metronome, peripherals.GPIO5.degrade()).unwrap());
 
     // Volume
     spawner.spawn(

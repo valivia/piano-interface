@@ -60,6 +60,10 @@ impl ControlEvents for Reverb {
     fn click_event(&mut self, press_type: ButtonPressType) {
         self.cursor.click(press_type);
     }
+
+    fn power_state_reset(&mut self) {
+        self.cursor = Cursor::default();
+    }
 }
 
 pub struct ReverbType {

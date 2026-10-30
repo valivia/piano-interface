@@ -1421,6 +1421,7 @@ dependencies = [
  "esp-rtos",
  "gc9a01-rs",
  "heapless 0.9.3",
+ "micromath",
  "static_cell",
 ]
 

@@ -1,107 +1,30 @@
+use core::fmt::Write;
+
+use crate::modules::display::style::STYLE_ACCENT;
+use crate::modules::display::style::STYLE_ACTIVE;
+use crate::modules::{
+    display::{sprite::IndexedImage, style::Style},
+    state::{Page, State, cursor::OptionState},
+};
+use crate::task::display::Display;
 use embassy_time::Instant;
+use embedded_graphics::geometry::Dimensions;
+use embedded_graphics::text::DecorationColor;
 use embedded_graphics::{
     Drawable,
     geometry::{Point, Size},
-    mono_font::{
-        MonoTextStyle,
-        ascii::{FONT_7X13, FONT_7X14_BOLD, FONT_10X20},
-    },
-    pixelcolor::{Rgb565, RgbColor},
-    primitives::{
-        Circle, PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, RoundedRectangle, StyledDrawable,
-    },
+    mono_font::{MonoTextStyle, ascii::FONT_7X14_BOLD},
+    primitives::{Circle, Rectangle, RoundedRectangle, StyledDrawable},
     text::{Alignment, Text},
 };
-
-use crate::{
-    modules::{
-        display::sprite::{IndexedImage, Palette},
-        state::{Page, State},
-    },
-    task::display::Display,
-};
+use heapless::String;
 
 mod demo;
 mod instrument;
 mod metronome;
 mod reverb;
 mod sprite;
-
-// Color
-const COLOR_INACTIVE: Rgb565 = Rgb565::new(9, 19, 9);
-const COLOR_ACCENT: Rgb565 = Rgb565::new(26, 47, 18);
-const COLOR_ACTIVE: Rgb565 = Rgb565::new(29, 42, 6);
-
-// Text
-const TEXT_DEFAULT: MonoTextStyle<'_, Rgb565> = MonoTextStyle::new(&FONT_7X13, COLOR_ACCENT);
-const TEXT_LARGE: MonoTextStyle<'_, Rgb565> = MonoTextStyle::new(&FONT_10X20, COLOR_ACCENT);
-
-// Outline
-const STROKE_INACTIVE: PrimitiveStyle<Rgb565> = PrimitiveStyleBuilder::new()
-    .stroke_color(COLOR_INACTIVE)
-    .stroke_width(1)
-    .build();
-const STROKE_ACCENT: PrimitiveStyle<Rgb565> = PrimitiveStyleBuilder::new()
-    .stroke_color(COLOR_ACCENT)
-    .stroke_width(1)
-    .build();
-const STROKE_ACTIVE: PrimitiveStyle<Rgb565> = PrimitiveStyleBuilder::new()
-    .stroke_color(COLOR_ACTIVE)
-    .stroke_width(1)
-    .build();
-
-// Fill
-const FILL_INACTIVE: PrimitiveStyle<Rgb565> = PrimitiveStyleBuilder::new()
-    .fill_color(COLOR_INACTIVE)
-    .build();
-const FILL_ACCENT: PrimitiveStyle<Rgb565> = PrimitiveStyleBuilder::new()
-    .fill_color(COLOR_ACCENT)
-    .build();
-const FILL_ACTIVE: PrimitiveStyle<Rgb565> = PrimitiveStyleBuilder::new()
-    .fill_color(COLOR_ACTIVE)
-    .build();
-
-const PALETTE_INACTIVE: Palette = [Rgb565::BLACK, COLOR_INACTIVE, COLOR_INACTIVE, Rgb565::BLACK];
-const PALETTE_ACCENT: Palette = [Rgb565::BLACK, COLOR_ACCENT, COLOR_ACCENT, Rgb565::BLACK];
-const PALETTE_ACTIVE: Palette = [Rgb565::BLACK, COLOR_ACTIVE, COLOR_ACTIVE, Rgb565::BLACK];
-
-struct Style {
-    fill: &'static PrimitiveStyle<Rgb565>,
-    stroke: &'static PrimitiveStyle<Rgb565>,
-    color: Rgb565,
-    palette: &'static Palette,
-}
-
-impl Style {
-    pub fn generic(enabled: bool) -> &'static Style {
-        if enabled {
-            &STYLE_ACTIVE
-        } else {
-            &STYLE_ACCENT
-        }
-    }
-}
-
-const STYLE_INACTIVE: Style = Style {
-    fill: &FILL_INACTIVE,
-    stroke: &STROKE_INACTIVE,
-    color: COLOR_INACTIVE,
-    palette: &PALETTE_INACTIVE,
-};
-
-const STYLE_ACCENT: Style = Style {
-    fill: &FILL_ACCENT,
-    stroke: &STROKE_ACCENT,
-    color: COLOR_ACCENT,
-    palette: &PALETTE_ACCENT,
-};
-
-const STYLE_ACTIVE: Style = Style {
-    fill: &FILL_ACTIVE,
-    stroke: &STROKE_ACTIVE,
-    color: COLOR_ACTIVE,
-    palette: &PALETTE_ACTIVE,
-};
+mod style;
 
 pub struct AnimationState {
     pub timings: [Instant; 4],
@@ -158,20 +81,32 @@ impl<'a> DisplayRenderer<'a> {
 
         self.display.flush().ok();
     }
-}
 
-fn icon_style(enabled: bool) -> &'static Style {
-    if enabled {
-        &STYLE_ACTIVE
-    } else {
-        &STYLE_INACTIVE
+    pub fn draw_option(&mut self, value: impl core::fmt::Display, y: i32, state: OptionState) {
+        let mut buffer = String::<16>::new();
+        write!(buffer, "{}", value).ok();
+
+        let mut style = STYLE_ACCENT.text_large();
+        match state {
+            OptionState::Idle => (),
+            OptionState::Selected => style.text_color = Some(STYLE_ACTIVE.color),
+            OptionState::Editing => {
+                style.text_color = Some(STYLE_ACTIVE.color);
+                style.underline_color = DecorationColor::TextColor
+            }
+        }
+
+        let text = Text::with_alignment(&buffer, Point::new(120, y), style, Alignment::Center);
+
+        text.bounding_box();
+
+        text.draw(&mut self.display).ok();
     }
-}
 
-impl<'a> DisplayRenderer<'a> {
     pub fn draw_status_icons(&mut self, state: &State) {
         // Demo
-        let text_style = MonoTextStyle::new(&FONT_7X14_BOLD, icon_style(state.demo.enabled).color);
+        let text_style =
+            MonoTextStyle::new(&FONT_7X14_BOLD, Style::toggled(state.demo.enabled).color);
 
         let demo_icon =
             Text::with_alignment("DEMO", Point::new(120, 220), text_style, Alignment::Center);
@@ -184,13 +119,16 @@ impl<'a> DisplayRenderer<'a> {
         // Reverb
         let location = Point::new(120 - ICON_OFFSET, ICON_HEIGHT);
         Circle::with_center(location, 4)
-            .draw_styled(icon_style(state.reverb.enabled).fill, &mut self.display)
+            .draw_styled(Style::toggled(state.reverb.enabled).fill, &mut self.display)
             .ok();
         RoundedRectangle::with_equal_corners(
             Rectangle::with_center(location, Size::new_equal(32)),
             Size::new_equal(6),
         )
-        .draw_styled(icon_style(state.reverb.enabled).stroke, &mut self.display)
+        .draw_styled(
+            Style::toggled(state.reverb.enabled).stroke,
+            &mut self.display,
+        )
         .ok();
 
         // Metronome
@@ -203,7 +141,7 @@ impl<'a> DisplayRenderer<'a> {
             .draw(
                 &mut self.display,
                 Point::new(120 + ICON_OFFSET - 16, ICON_HEIGHT - 16),
-                icon_style(state.metronome.enabled).palette,
+                Style::toggled(state.metronome.enabled).palette,
             )
             .unwrap();
     }

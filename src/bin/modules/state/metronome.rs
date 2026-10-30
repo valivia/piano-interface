@@ -34,12 +34,6 @@ impl Default for Metronome {
     }
 }
 
-impl Metronome {
-    pub fn selected_setting(&self) -> MetronomeSetting {
-        METRONOME_SETTINGS[self.cursor.selected]
-    }
-}
-
 impl ControlEvents for Metronome {
     fn encoder_event(&mut self, delta: i8) {
         let Some(i) = self.cursor.encoder(delta, METRONOME_SETTINGS.len()) else {
@@ -59,5 +53,10 @@ impl ControlEvents for Metronome {
 
     fn click_event(&mut self, press_type: ButtonPressType) {
         self.cursor.click(press_type);
+    }
+
+    fn power_state_reset(&mut self) {
+        self.enabled = false;
+        self.cursor = Cursor::default();
     }
 }

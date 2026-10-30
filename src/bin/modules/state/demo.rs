@@ -18,6 +18,9 @@ impl Default for Demo {
 }
 
 impl Demo {
+    pub fn is_selecting(&self) -> bool {
+        self.selected_song_index != self.active_song_index
+    }
     pub fn active_song(&self) -> &'static str {
         DEMOS[self.active_song_index]
     }
@@ -28,12 +31,31 @@ impl Demo {
 }
 
 impl ControlEvents for Demo {
-    fn encoder_event(&mut self, delta: i8) {}
+    fn encoder_event(&mut self, delta: i8) {
+        let len = DEMOS.len() as isize;
+        self.selected_song_index =
+            (self.selected_song_index as isize + delta as isize).rem_euclid(len) as usize;
+    }
 
-    fn click_event(&mut self, press_type: ButtonPressType) {}
+    fn click_event(&mut self, _press_type: ButtonPressType) {
+        if self.is_selecting() {
+            self.active_song_index = self.selected_song_index;
+            self.enabled = true;
+        } else {
+            self.enabled = !self.enabled;
+        }
+    }
+
+    fn power_state_reset(&mut self) {
+        self.active_song_index = self.selected_song_index
+    }
 }
 
 pub const DEMOS: &[&'static str] = &[
+    // Songs
+    "Für elise",
+    "Moonlight sonata",
+    // Instrument demos
     "Grand piano 1",
     "Grand piano 2",
     "Electric piano 1",
@@ -44,7 +66,4 @@ pub const DEMOS: &[&'static str] = &[
     "Church organ 1",
     "Church organ 2",
     "Strings",
-    // aaa
-    "Für elise",
-    "Moonlight sonata",
 ];

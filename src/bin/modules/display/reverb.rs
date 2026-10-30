@@ -1,4 +1,3 @@
-use core::fmt::Write;
 use embassy_time::Instant;
 use embedded_graphics::{
     Drawable,
@@ -6,18 +5,18 @@ use embedded_graphics::{
     primitives::{Circle, Rectangle, RoundedRectangle, StyledDrawable},
     text::{Alignment, Text},
 };
-use heapless::String;
 
 use crate::modules::{
-    display::{DisplayRenderer, PageRender, STYLE_ACCENT, STYLE_ACTIVE, Style, TEXT_LARGE},
+    display::{
+        DisplayRenderer, PageRender,
+        style::{STYLE_ACCENT, STYLE_ACTIVE, Style},
+    },
     state::reverb::Reverb,
     util::map_range,
 };
 
 impl PageRender for Reverb {
     fn render(&self, renderer: &mut DisplayRenderer) {
-        let mut text = String::<8>::new();
-
         // Logo
         const MIN_SIZE: u32 = 20;
         const MAX_SIZE: u32 = 64;
@@ -64,25 +63,14 @@ impl PageRender for Reverb {
         Text::with_alignment(
             "Reverb",
             Point::new(120, 120),
-            TEXT_LARGE,
+            STYLE_ACCENT.text_title(),
             Alignment::Center,
         )
         .draw(&mut renderer.display)
         .ok();
 
         // Options
-        Text::with_alignment(
-            self.reverb_type().name,
-            Point::new(120, 150),
-            TEXT_LARGE,
-            Alignment::Center,
-        )
-        .draw(&mut renderer.display)
-        .ok();
-
-        write!(text, "{}", self.reverb_depth).ok();
-        Text::with_alignment(&text, Point::new(120, 170), TEXT_LARGE, Alignment::Center)
-            .draw(&mut renderer.display)
-            .ok();
+        renderer.draw_option(&self.reverb_type().name, 150, self.cursor.option_state(0));
+        renderer.draw_option(&self.reverb_depth, 170, self.cursor.option_state(1));
     }
 }
