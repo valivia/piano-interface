@@ -1,9 +1,9 @@
 use defmt::info;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
-use embassy_time::Timer;
+use embassy_time::{Instant, Timer};
 use esp_hal::{
     analog::adc::{Adc, AdcCalCurve, AdcConfig, Attenuation},
-    peripherals::{ADC1, GPIO1, GPIO5},
+    peripherals::{ADC1, GPIO1},
 };
 
 pub struct VolumeConfig<'a> {
@@ -11,9 +11,9 @@ pub struct VolumeConfig<'a> {
     pub adc: ADC1<'a>,
 }
 
-const VOLUME_CHANGED: Signal<CriticalSectionRawMutex, u8> = Signal::new();
+pub static VOLUME: Signal<CriticalSectionRawMutex, u8> = Signal::new();
 
-const CALIBRATION_MAX: usize = 3154;
+const CALIBRATION_MAX: usize = 2800; // 3154
 
 const TAG: &'static str = "[volume]";
 
@@ -27,19 +27,29 @@ pub async fn task(config: VolumeConfig<'static>) {
 
     // unreachable value, forces loop to send volume at boot
     let mut volume: u8 = 255;
-
+    let mut last_reading: u16 = u16::MAX;
+    let mut last_big_change = Instant::now();
     info!("{} initialized", TAG);
 
     loop {
         let pin_value: u16 = adc1.read_oneshot(&mut pin).await;
-        let new_volume = (pin_value as f32 / CALIBRATION_MAX as f32 * 100.0) as u8;
+        let difference = pin_value.abs_diff(last_reading);
+        let new_volume = u8::clamp(
+            (pin_value as f32 / CALIBRATION_MAX as f32 * 100.0) as u8,
+            0,
+            100,
+        );
 
-        if new_volume != volume {
-            volume = new_volume;
-            VOLUME_CHANGED.signal(new_volume);
-            // info!("volume changed: {} - {}", &pin_value, new_volume);
+        if new_volume.abs_diff(volume) > 10 || volume == 255 {
+            last_big_change = Instant::now();
         }
 
-        Timer::after_millis(250).await;
+        if difference > 40 && Instant::now().duration_since(last_big_change).as_millis() < 1200 {
+            VOLUME.signal(new_volume);
+        }
+
+        volume = new_volume;
+        last_reading = pin_value;
+        Timer::after_millis(100).await;
     }
 }

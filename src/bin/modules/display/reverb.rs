@@ -23,7 +23,7 @@ impl PageRender for Reverb {
 
         let has_reverb = self.enabled && self.reverb_depth > 0;
 
-        let size = map_range((0, 100), (MIN_SIZE, MAX_SIZE), self.reverb_depth);
+        let size = map_range((0, 100), (MIN_SIZE, MAX_SIZE), self.reverb_depth as u32);
         let location = Point::new(120, 60);
         RoundedRectangle::with_equal_corners(
             Rectangle::with_center(location, Size::new_equal(size)),

@@ -2,13 +2,18 @@ use core::fmt::Write;
 
 use crate::modules::display::style::STYLE_ACCENT;
 use crate::modules::display::style::STYLE_ACTIVE;
+use crate::modules::display::style::STYLE_INACTIVE;
+use crate::modules::util::map_range_f;
 use crate::modules::{
     display::{sprite::IndexedImage, style::Style},
     state::{Page, State, cursor::OptionState},
 };
 use crate::task::display::Display;
 use embassy_time::Instant;
+use embedded_graphics::geometry::Angle;
 use embedded_graphics::geometry::Dimensions;
+use embedded_graphics::primitives::Arc;
+use embedded_graphics::primitives::PrimitiveStyle;
 use embedded_graphics::text::DecorationColor;
 use embedded_graphics::{
     Drawable,
@@ -26,10 +31,17 @@ mod reverb;
 mod sprite;
 mod style;
 
+const FLASH_DURATION_MS: u64 = 1000;
+
 pub struct AnimationState {
     pub timings: [Instant; 4],
     // Specifics
     pub delay_circle_size: u32,
+}
+
+pub struct VolumeState {
+    pub last_change: Instant,
+    pub value: u8,
 }
 
 impl Default for AnimationState {
@@ -46,6 +58,7 @@ pub struct DisplayRenderer<'a> {
     pub state: State,
     pub previous_state: Option<State>,
     pub animation_state: AnimationState,
+    pub volume_state: Option<VolumeState>,
 }
 
 impl<'a> DisplayRenderer<'a> {
@@ -72,6 +85,16 @@ impl<'a> DisplayRenderer<'a> {
             _ => {}
         }
 
+        // Draw volume UI
+        if let Some(volume_state) = &self.volume_state {
+            if Instant::now()
+                .checked_duration_since(volume_state.last_change)
+                .is_some_and(|duration| duration.as_millis() < 1000)
+            {
+                self.draw_volume(volume_state.value);
+            }
+        }
+
         // Reset anim state
         if let Some(previous_state) = self.previous_state {
             if previous_state.active_page != self.state.active_page {
@@ -80,6 +103,13 @@ impl<'a> DisplayRenderer<'a> {
         }
 
         self.display.flush().ok();
+    }
+
+    pub fn store_volume(&mut self, volume: u8) {
+        self.volume_state = Some(VolumeState {
+            last_change: Instant::now(),
+            value: volume,
+        });
     }
 
     pub fn draw_option(&mut self, value: impl core::fmt::Display, y: i32, state: OptionState) {
@@ -144,6 +174,29 @@ impl<'a> DisplayRenderer<'a> {
                 Style::toggled(state.metronome.enabled).palette,
             )
             .unwrap();
+    }
+
+    pub fn draw_volume(&mut self, volume: u8) {
+        let circle = Circle::new(Point::new(0, 0), 240);
+        let start_angle = Angle::from_degrees(150.0);
+
+        Arc::from_circle(circle, start_angle, Angle::from_degrees(60.0))
+            .draw_styled(
+                &PrimitiveStyle::with_stroke(STYLE_INACTIVE.color, 5),
+                &mut self.display,
+            )
+            .ok();
+
+        Arc::from_circle(
+            circle,
+            start_angle,
+            Angle::from_degrees(map_range_f((0.0, 100.0), (0.0, 60.0), volume as f32)),
+        )
+        .draw_styled(
+            &PrimitiveStyle::with_stroke(STYLE_ACTIVE.color, 5),
+            &mut self.display,
+        )
+        .ok();
     }
 }
 
