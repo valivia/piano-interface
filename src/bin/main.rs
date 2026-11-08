@@ -11,8 +11,11 @@ use defmt::{error, info};
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use esp_hal::clock::CpuClock;
+use esp_hal::system::Stack;
 use esp_hal::timer::timg::TimerGroup;
 use esp_println::{self as _, println};
+use esp_rtos::embassy::Executor;
+use static_cell::StaticCell;
 
 use crate::task::button::{ButtonId, button_task};
 use crate::task::display::DisplayConfig;
@@ -70,8 +73,36 @@ async fn main(spawner: Spawner) -> ! {
 
     info!("Embassy initialized!");
 
-    // TODO: Spawn some tasks
-    let _ = spawner;
+    static APP_CORE_STACK: StaticCell<Stack<8192>> = StaticCell::new();
+    let app_core_stack = APP_CORE_STACK.init(Stack::new());
+
+    // CPU heavy Display task on second core
+    esp_rtos::start_second_core(
+        peripherals.CPU_CTRL,
+        peripherals.FROM_CPU_INTR1,
+        app_core_stack,
+        move || {
+            static EXECUTOR: StaticCell<Executor> = StaticCell::new();
+            let executor = EXECUTOR.init(Executor::new());
+            executor.run(|spawner| {
+                // Display
+                spawner.spawn(
+                    task::display::display_task(DisplayConfig {
+                        spi: peripherals.SPI2,
+                        clock: peripherals.GPIO34.into(),
+                        data_out: peripherals.GPIO33.into(),
+                        reset: peripherals.GPIO18.into(),
+                        dc: peripherals.GPIO17.into(),
+                        cs: peripherals.GPIO16.into(),
+                        backlight: peripherals.GPIO15.into(),
+                    })
+                    .unwrap(),
+                );
+            });
+        },
+    );
+
+    info!("Second core initialized");
 
     // Power state
     spawner.spawn(
@@ -82,20 +113,6 @@ async fn main(spawner: Spawner) -> ! {
     );
     // State
     spawner.spawn(task::state::task().unwrap());
-
-    // Display
-    spawner.spawn(
-        task::display::display_task(DisplayConfig {
-            spi: peripherals.SPI2,
-            clock: peripherals.GPIO34.into(),
-            data_out: peripherals.GPIO33.into(),
-            reset: peripherals.GPIO18.into(),
-            dc: peripherals.GPIO17.into(),
-            cs: peripherals.GPIO16.into(),
-            backlight: peripherals.GPIO15.into(),
-        })
-        .unwrap(),
-    );
 
     // Metronome
     spawner.spawn(
@@ -132,7 +149,14 @@ async fn main(spawner: Spawner) -> ! {
         .unwrap(),
     );
 
+    let mut ticker = embassy_time::Ticker::every(Duration::from_millis(100));
+
     loop {
-        Timer::after(Duration::from_millis(100)).await;
+        let start = esp_hal::time::Instant::now();
+        ticker.next().await;
+        let elapsed = start.elapsed();
+        if elapsed > esp_hal::time::Duration::from_millis(110) {
+            defmt::warn!("CPU overload? latency: {:?}", elapsed);
+        }
     }
 }
