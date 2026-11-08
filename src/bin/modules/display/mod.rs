@@ -9,8 +9,7 @@ use crate::task::display::Display;
 use core::fmt::Write;
 use embassy_time::Instant;
 use embedded_graphics::geometry::Angle;
-use embedded_graphics::primitives::{Arc, Line, PrimitiveStyle};
-use embedded_graphics::text::DecorationColor;
+use embedded_graphics::primitives::{Arc, PrimitiveStyle};
 use embedded_graphics::{
     Drawable,
     geometry::{Point, Size},
@@ -27,7 +26,7 @@ mod reverb;
 mod sprite;
 mod style;
 
-const BLINK_DURATION_MS: u64 = 800;
+const BLINK_DURATION_MS: u64 = 500;
 
 pub struct AnimationState {
     pub timings: [Instant; 4],

@@ -47,6 +47,7 @@ impl ControlEvents for Demo {
     }
 
     fn power_state_reset(&mut self) {
+        self.enabled = false;
         self.active_song_index = self.selected_song_index
     }
 }
