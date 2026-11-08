@@ -6,12 +6,16 @@ use crate::{
 // Cursor
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MetronomeSetting {
+    State,
     Bpm,
     TimeSignature,
 }
 
-pub const METRONOME_SETTINGS: [MetronomeSetting; 2] =
-    [MetronomeSetting::Bpm, MetronomeSetting::TimeSignature];
+pub const METRONOME_SETTINGS: [MetronomeSetting; 3] = [
+    MetronomeSetting::State,
+    MetronomeSetting::TimeSignature,
+    MetronomeSetting::Bpm,
+];
 
 // Struct
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,17 +46,22 @@ impl ControlEvents for Metronome {
 
         match METRONOME_SETTINGS[i] {
             MetronomeSetting::Bpm => {
-                self.bpm = (self.bpm as i16 + delta as i16).clamp(30, 255) as u8;
+                self.bpm = (self.bpm as i16 + delta as i16 * 5).clamp(30, 255) as u8;
             }
             MetronomeSetting::TimeSignature => {
                 self.time_signature =
                     (self.time_signature as i16 + delta as i16).clamp(1, 16) as u8;
             }
+            _ => {}
         }
     }
 
     fn click_event(&mut self, press_type: ButtonPressType) {
-        self.cursor.click(press_type);
+        if METRONOME_SETTINGS[self.cursor.selected] == MetronomeSetting::State {
+            self.enabled = !self.enabled;
+            return;
+        }
+        self.cursor.click(press_type)
     }
 
     fn power_state_reset(&mut self) {

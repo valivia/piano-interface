@@ -67,22 +67,24 @@ impl State {
             return;
         }
 
-        let is_instrument_page = self.active_page != Page::Instrument;
-
         match event.id {
             ButtonId::OnOff => (),
             ButtonId::Demo => {
-                self.page_event(Page::Demo);
+                if event.press_type == ButtonPressType::Long {
+                    self.demo.enabled = !self.demo.enabled;
+                } else {
+                    self.page_event(Page::Demo);
+                }
             }
             ButtonId::Metronome => {
-                if event.press_type == ButtonPressType::Short {
+                if event.press_type == ButtonPressType::Long {
                     self.metronome.enabled = !self.metronome.enabled;
                 } else {
                     self.page_event(Page::Metronome);
                 }
             }
             ButtonId::Reverb => {
-                if event.press_type == ButtonPressType::Short {
+                if event.press_type == ButtonPressType::Long {
                     self.reverb.enabled = !self.reverb.enabled;
                 } else {
                     self.page_event(Page::Reverb);

@@ -32,14 +32,14 @@ impl Instrument {
 impl ControlEvents for Instrument {
     fn encoder_event(&mut self, delta: i8) {
         // Wrapping version
-        // let len = INSTRUMENTS.len() as isize;
-        // self.selected_instrument_index =
-        //     (self.selected_instrument_index as isize + delta as isize).rem_euclid(len) as usize;
+        let len = INSTRUMENTS.len() as isize;
+        self.selected_instrument_index =
+            (self.selected_instrument_index as isize + delta as isize).rem_euclid(len) as usize;
 
         // Clamped version
-        self.selected_instrument_index = (self.selected_instrument_index as isize + delta as isize)
-            .clamp(0, INSTRUMENTS.len() as isize - 1)
-            as usize;
+        // self.selected_instrument_index = (self.selected_instrument_index as isize + delta as isize)
+        //     .clamp(0, INSTRUMENTS.len() as isize - 1)
+        //     as usize;
     }
 
     fn click_event(&mut self, _press_type: ButtonPressType) {

@@ -1,19 +1,15 @@
-use core::fmt::Write;
-
-use crate::modules::display::style::STYLE_ACCENT;
-use crate::modules::display::style::STYLE_ACTIVE;
-use crate::modules::display::style::STYLE_INACTIVE;
+use crate::modules::display::style::{STYLE_ACCENT, STYLE_ACTIVE, STYLE_INACTIVE};
+use crate::modules::util::get_point_edge;
 use crate::modules::util::map_range_f;
 use crate::modules::{
     display::{sprite::IndexedImage, style::Style},
     state::{Page, State, cursor::OptionState},
 };
 use crate::task::display::Display;
+use core::fmt::Write;
 use embassy_time::Instant;
 use embedded_graphics::geometry::Angle;
-use embedded_graphics::geometry::Dimensions;
-use embedded_graphics::primitives::Arc;
-use embedded_graphics::primitives::PrimitiveStyle;
+use embedded_graphics::primitives::{Arc, Line, PrimitiveStyle};
 use embedded_graphics::text::DecorationColor;
 use embedded_graphics::{
     Drawable,
@@ -31,7 +27,7 @@ mod reverb;
 mod sprite;
 mod style;
 
-const FLASH_DURATION_MS: u64 = 1000;
+const BLINK_DURATION_MS: u64 = 800;
 
 pub struct AnimationState {
     pub timings: [Instant; 4],
@@ -78,12 +74,26 @@ impl<'a> DisplayRenderer<'a> {
 
         state.get_render_page().render(self);
 
+        // draw status icons
         match self.state.active_page {
             Page::Instrument => {
                 self.draw_status_icons(&state);
             }
             _ => {}
         }
+
+        // Menu indicator
+        self.draw_current_menu_indicator();
+
+        // Selector indicator
+        let should_blink = match state.active_page {
+            Page::Instrument => state.instrument.is_selecting(),
+            Page::Metronome => state.metronome.cursor.editing,
+            Page::Reverb => state.metronome.cursor.editing,
+            Page::Demo => state.demo.is_selecting(),
+        };
+
+        self.draw_selector_indicator(should_blink);
 
         // Draw volume UI
         if let Some(volume_state) = &self.volume_state {
@@ -112,25 +122,103 @@ impl<'a> DisplayRenderer<'a> {
         });
     }
 
-    pub fn draw_option(&mut self, value: impl core::fmt::Display, y: i32, state: OptionState) {
+    pub fn should_blink() -> bool {
+        Instant::now().as_millis() % (BLINK_DURATION_MS * 2) < BLINK_DURATION_MS
+    }
+
+    pub fn draw_selector_indicator(&mut self, blinking: bool) {
+        Circle::with_center(Point::new(240, 120), 16)
+            .draw_styled(
+                &Style::toggled(if blinking {
+                    DisplayRenderer::should_blink()
+                } else {
+                    true
+                })
+                .fill,
+                &mut self.display,
+            )
+            .ok();
+    }
+
+    pub fn draw_current_menu_indicator(&mut self) {
+        let (location, active) = match self.state.active_page {
+            Page::Metronome => (get_point_edge(210.0), self.state.metronome.enabled),
+            Page::Reverb => (Point::new(0, 120), self.state.reverb.enabled),
+            Page::Demo => (get_point_edge(150.0), self.state.demo.enabled),
+            _ => return,
+        };
+
+        let style = if active {
+            &STYLE_ACTIVE.fill
+        } else {
+            &STYLE_ACCENT.fill
+        };
+
+        Circle::with_center(location, 16)
+            .draw_styled(style, &mut self.display)
+            .ok();
+    }
+
+    pub fn draw_option(
+        &mut self,
+        label: &'static str,
+        value: impl core::fmt::Display,
+        y: i32,
+        state: OptionState,
+    ) {
         let mut buffer = String::<16>::new();
         write!(buffer, "{}", value).ok();
 
-        let mut style = STYLE_ACCENT.text_large();
+        // Styling
+        let mut label_style = STYLE_ACCENT.text_large();
+        let mut value_style = STYLE_ACCENT.text_large();
         match state {
             OptionState::Idle => (),
-            OptionState::Selected => style.text_color = Some(STYLE_ACTIVE.color),
+            OptionState::Selected => label_style.text_color = Some(STYLE_ACTIVE.color),
             OptionState::Editing => {
-                style.text_color = Some(STYLE_ACTIVE.color);
-                style.underline_color = DecorationColor::TextColor
+                value_style.text_color = None;
+                value_style.background_color = Some(STYLE_ACTIVE.color);
             }
         }
 
-        let text = Text::with_alignment(&buffer, Point::new(120, y), style, Alignment::Center);
+        // Draw label
+        Text::with_alignment(label, Point::new(120 - 6, y), label_style, Alignment::Right)
+            .draw(&mut self.display)
+            .ok();
 
-        text.bounding_box();
+        // Draw divider
+        Text::with_alignment(
+            ":",
+            Point::new(120, y),
+            STYLE_ACCENT.text_default(),
+            Alignment::Center,
+        )
+        .draw(&mut self.display)
+        .ok();
+
+        // Draw value text
+        let text = Text::with_alignment(
+            &buffer,
+            Point::new(120 + 8, y),
+            value_style,
+            Alignment::Left,
+        );
 
         text.draw(&mut self.display).ok();
+
+        // Draw line to selector
+        //         const LINE_STROKE: PrimitiveStyle<Rgb565> = PrimitiveStyleBuilder::new()
+        //             .stroke_color(STYLE_ACTIVE.color)
+        //             .stroke_width(3)
+        //             .build();
+        //
+        //         Circle::with_center(Point::new(240, 120), 16)
+        //             .draw_styled(&STYLE_ACTIVE.fill, &mut self.display)
+        //             .ok();
+        //
+        //         Line::new(Point::new(200, 120), Point::new(240, 120))
+        //             .draw_styled(&LINE_STROKE, &mut self.display)
+        //             .ok();
     }
 
     pub fn draw_status_icons(&mut self, state: &State) {
@@ -149,14 +237,17 @@ impl<'a> DisplayRenderer<'a> {
         // Reverb
         let location = Point::new(120 - ICON_OFFSET, ICON_HEIGHT);
         Circle::with_center(location, 4)
-            .draw_styled(Style::toggled(state.reverb.enabled).fill, &mut self.display)
+            .draw_styled(
+                &Style::toggled(state.reverb.enabled).fill,
+                &mut self.display,
+            )
             .ok();
         RoundedRectangle::with_equal_corners(
             Rectangle::with_center(location, Size::new_equal(32)),
             Size::new_equal(6),
         )
         .draw_styled(
-            Style::toggled(state.reverb.enabled).stroke,
+            &Style::toggled(state.reverb.enabled).stroke,
             &mut self.display,
         )
         .ok();
@@ -171,7 +262,7 @@ impl<'a> DisplayRenderer<'a> {
             .draw(
                 &mut self.display,
                 Point::new(120 + ICON_OFFSET - 16, ICON_HEIGHT - 16),
-                Style::toggled(state.metronome.enabled).palette,
+                &Style::toggled(state.metronome.enabled).palette,
             )
             .unwrap();
     }

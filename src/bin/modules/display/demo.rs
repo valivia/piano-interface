@@ -10,7 +10,7 @@ use crate::modules::{
     display::{
         DisplayRenderer, PageRender,
         sprite::IndexedImage,
-        style::{STYLE_ACCENT, Style},
+        style::{STYLE_ACCENT, STYLE_ACTIVE, Style},
     },
     state::demo::Demo,
 };
@@ -41,7 +41,7 @@ impl PageRender for Demo {
                     120 - X_OFFSET - (WIDTH as i32 / 2),
                     BASE_HEIGHT - height_offset,
                 ),
-                Style::toggled(self.enabled).palette,
+                &Style::toggled(self.enabled).palette,
             )
             .unwrap();
 
@@ -52,7 +52,7 @@ impl PageRender for Demo {
                     120 + X_OFFSET - (WIDTH as i32 / 2),
                     BASE_HEIGHT + height_offset,
                 ),
-                Style::toggled(self.enabled).palette,
+                &Style::toggled(self.enabled).palette,
             )
             .unwrap();
 
@@ -81,7 +81,7 @@ impl PageRender for Demo {
             Text::with_alignment(
                 self.selected_song(),
                 Point::new(120, 160),
-                STYLE_ACCENT.text_default(),
+                Style::generic(DisplayRenderer::should_blink()).text_default(),
                 Alignment::Center,
             )
             .draw(&mut renderer.display)

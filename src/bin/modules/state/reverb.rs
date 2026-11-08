@@ -6,12 +6,16 @@ use crate::{
 // Cursor
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReverbSetting {
+    State,
     ReverbType,
     ReverbDepth,
 }
 
-pub const REVERB_SETTINGS: [ReverbSetting; 2] =
-    [ReverbSetting::ReverbType, ReverbSetting::ReverbDepth];
+pub const REVERB_SETTINGS: [ReverbSetting; 3] = [
+    ReverbSetting::State,
+    ReverbSetting::ReverbType,
+    ReverbSetting::ReverbDepth,
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Reverb {
@@ -54,10 +58,15 @@ impl ControlEvents for Reverb {
                 self.reverb_depth =
                     (self.reverb_depth as i16 + delta as i16 * 5).clamp(10, 100) as u8;
             }
+            _ => {}
         }
     }
 
     fn click_event(&mut self, press_type: ButtonPressType) {
+        if REVERB_SETTINGS[self.cursor.selected] == ReverbSetting::State {
+            self.enabled = !self.enabled;
+            return;
+        }
         self.cursor.click(press_type);
     }
 

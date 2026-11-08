@@ -1,3 +1,4 @@
+use core::fmt::Write;
 use embassy_time::Instant;
 use embedded_graphics::{
     Drawable,
@@ -5,6 +6,7 @@ use embedded_graphics::{
     primitives::{Circle, Rectangle, RoundedRectangle, StyledDrawable},
     text::{Alignment, Text},
 };
+use heapless::String;
 
 use crate::modules::{
     display::{
@@ -29,11 +31,11 @@ impl PageRender for Reverb {
             Rectangle::with_center(location, Size::new_equal(size)),
             Size::new_equal(16),
         )
-        .draw_styled(STYLE_ACCENT.stroke, &mut renderer.display)
+        .draw_styled(&STYLE_ACCENT.stroke, &mut renderer.display)
         .ok();
 
         Circle::with_center(location, 4)
-            .draw_styled(STYLE_ACCENT.fill, &mut renderer.display)
+            .draw_styled(&STYLE_ACCENT.fill, &mut renderer.display)
             .ok();
 
         let anim_state = &mut renderer.animation_state;
@@ -51,12 +53,12 @@ impl PageRender for Reverb {
                 Rectangle::with_center(location, Size::new_equal(anim_state.delay_circle_size)),
                 Size::new_equal(16),
             )
-            .draw_styled(STYLE_ACTIVE.stroke, &mut renderer.display)
+            .draw_styled(&STYLE_ACTIVE.stroke, &mut renderer.display)
             .unwrap();
         }
 
         Circle::with_center(location, 4)
-            .draw_styled(Style::generic(has_reverb).stroke, &mut renderer.display)
+            .draw_styled(&Style::generic(has_reverb).stroke, &mut renderer.display)
             .unwrap();
 
         // Title
@@ -70,7 +72,18 @@ impl PageRender for Reverb {
         .ok();
 
         // Options
-        renderer.draw_option(&self.reverb_type().name, 150, self.cursor.option_state(0));
-        renderer.draw_option(&self.reverb_depth, 170, self.cursor.option_state(1));
+        let value = if self.enabled { "On" } else { "Off" };
+        renderer.draw_option("State", value, 150, self.cursor.option_state(0));
+
+        renderer.draw_option(
+            "Type",
+            &self.reverb_type().name,
+            175,
+            self.cursor.option_state(1),
+        );
+
+        let mut buffer = String::<5>::new();
+        write!(buffer, "{}%", &self.reverb_depth).ok();
+        renderer.draw_option("Depth", &buffer, 200, self.cursor.option_state(2));
     }
 }
