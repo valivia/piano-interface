@@ -6,6 +6,7 @@ use crate::modules::{
     state::{Page, State, cursor::OptionState},
 };
 use crate::task::display::Display;
+use crate::task::metronome::MetronomeState;
 use core::fmt::Write;
 use embassy_time::Instant;
 use embedded_graphics::geometry::Angle;
@@ -54,6 +55,7 @@ pub struct DisplayRenderer<'a> {
     pub previous_state: Option<State>,
     pub animation_state: AnimationState,
     pub volume_state: Option<VolumeState>,
+    pub metronome_state: Option<MetronomeState>,
 }
 
 impl<'a> DisplayRenderer<'a> {

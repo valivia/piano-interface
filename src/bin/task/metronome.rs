@@ -1,4 +1,7 @@
 use defmt::info;
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use embassy_sync::signal::Signal;
+use embassy_time::Instant;
 use esp_hal::clock;
 use esp_hal::gpio::OutputPin;
 use esp_hal::ledc::channel::{Channel, ChannelIFace};
@@ -13,6 +16,14 @@ use esp_hal::{
 use crate::modules::state::metronome::Metronome;
 use crate::task::power_state::POWER_STATE;
 use crate::task::state::STATE;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MetronomeState {
+    pub beat_instant: Instant,
+    pub current_beat: u8,
+}
+
+pub static METRONOME_STATE: Signal<CriticalSectionRawMutex, MetronomeState> = Signal::new();
 
 pub struct MetronomeConfig<'a> {
     pub buzzer_pin: AnyPin<'a>,
@@ -61,6 +72,11 @@ pub async fn metronome_task(config: MetronomeConfig<'static>) {
         if beat == 0 && metronome.time_signature >= 2 {
             frequency = 523;
         }
+
+        METRONOME_STATE.signal(MetronomeState {
+            beat_instant: Instant::now(),
+            current_beat: beat,
+        });
 
         beat = (beat + 1) % metronome.time_signature;
 

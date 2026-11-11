@@ -24,7 +24,7 @@ use crate::{
         display::{AnimationState, DisplayRenderer},
         state::State,
     },
-    task::{power_state::POWER_STATE, state::STATE, volume::VOLUME},
+    task::{metronome::METRONOME_STATE, power_state::POWER_STATE, state::STATE, volume::VOLUME},
 };
 
 static RENDERER: StaticCell<DisplayRenderer<'static>> = StaticCell::new();
@@ -79,6 +79,7 @@ pub async fn display_task(config: DisplayConfig<'static>) {
         previous_state: None,
         animation_state: AnimationState::default(),
         volume_state: None,
+        metronome_state: None,
     });
 
     renderer.display.reset(&mut reset, &mut delay).ok();
@@ -104,6 +105,10 @@ pub async fn display_task(config: DisplayConfig<'static>) {
 
         if let Some(volume) = VOLUME.try_take() {
             renderer.store_volume(volume);
+        }
+
+        if let Some(metronome_state) = METRONOME_STATE.try_take() {
+            renderer.metronome_state = Some(metronome_state);
         }
 
         let state = state_receiver.try_changed();
